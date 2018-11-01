@@ -1,0 +1,12 @@
+{
+  "name": "konekt-server",
+  "version": "1.0.0",
+  "main": "dist/index.js",
+  "repository": "https://github.com/obedm503/konekt-server.git",
+  "author": "obedm503 <obedm503@gmail.com>",
+  "license": "MIT",
+  "private": true,
+  "devDependencies": {
+    "typescript": "^3.1.5"
+  }
+}
