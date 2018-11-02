@@ -1,7 +1,8 @@
 import { createServer, Socket } from 'net';
 import { fromEvent } from 'rxjs';
-import { takeUntil, map, flatMap } from 'rxjs/operators';
+import { filter, flatMap, map, takeUntil } from 'rxjs/operators';
 import { Game } from './game';
+import { validateCommand } from './protocol';
 
 // socket events
 // [
@@ -26,27 +27,34 @@ const PORT = 4444;
 const server = createServer().listen(PORT, HOST);
 console.info(`listening on ${HOST}:${PORT}`);
 
-const socks$ = fromEvent<Socket>(server, 'connection').pipe(
+const sock$ = fromEvent<Socket>(server, 'connection').pipe(
   takeUntil(fromEvent(server, 'close')),
 );
 
-socks$.subscribe(sock => {
+sock$.subscribe(sock => {
   const name = sock.remoteAddress + ':' + sock.remotePort;
   console.log('CONNECTED: ', name);
 });
 
-const messages$ = socks$.pipe(
+const message$ = sock$.pipe(
   flatMap(sock => {
-    const close$ = fromEvent<void>(sock, 'close');
+    const closed$ = fromEvent<void>(sock, 'close');
     const game = new Game();
     return fromEvent<Buffer>(sock, 'data').pipe(
-      takeUntil(close$),
+      takeUntil(closed$),
       map(data => ({ data: data.toString(), sock, game })),
     );
   }),
 );
 
-messages$.subscribe(({ data, sock, game }) => {
+const invalid$ = message$.pipe(filter(({ data }) => !validateCommand(data)));
+const valid$ = message$.pipe(filter(({ data }) => validateCommand(data)));
+
+invalid$.subscribe(({ sock }) => {
+  sock.write(`ERROR`);
+});
+
+valid$.subscribe(({ data, sock, game }) => {
   console.log(
     `${sock.remoteAddress}:${sock.remotePort}`,
     data,
