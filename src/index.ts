@@ -1,8 +1,8 @@
 import { createServer, Socket } from 'net';
-import { fromEvent } from 'rxjs';
+import { fromEvent, Observable } from 'rxjs';
 import { filter, flatMap, map, takeUntil } from 'rxjs/operators';
 import { Game } from './game';
-import { validateCommand } from './protocol';
+import { commandIsInvalid } from './protocol';
 
 // socket events
 // [
@@ -42,22 +42,36 @@ const message$ = sock$.pipe(
     const game = new Game();
     return fromEvent<Buffer>(sock, 'data').pipe(
       takeUntil(closed$),
-      map(data => ({ data: data.toString(), sock, game })),
+      map(msg => ({ msg: msg.toString().trim(), sock, game })),
     );
   }),
 );
 
-const invalid$ = message$.pipe(filter(({ data }) => !validateCommand(data)));
-const valid$ = message$.pipe(filter(({ data }) => validateCommand(data)));
+const invalid$ = message$.pipe(
+  map(({ msg, sock, game }) => ({
+    sock,
+    game,
+    msg,
+    error: commandIsInvalid(msg, game),
+  })),
+  filter(({ error }) => !!error),
+);
 
-invalid$.subscribe(({ sock }) => {
-  sock.write(`ERROR`);
+invalid$.subscribe(({ sock, error }) => {
+  if (!error) {
+    return;
+  }
+  sock.write(error.toString());
 });
 
-valid$.subscribe(({ data, sock, game }) => {
+const valid$ = message$.pipe(
+  filter(({ msg, game }) => !commandIsInvalid(msg, game)),
+);
+
+valid$.subscribe(({ msg, sock, game }) => {
   console.log(
     `${sock.remoteAddress}:${sock.remotePort}`,
-    data,
+    msg,
     JSON.stringify({ board: game.board }),
   );
   // sock.write();
