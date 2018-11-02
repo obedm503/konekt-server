@@ -7,6 +7,16 @@
   "license": "MIT",
   "private": true,
   "devDependencies": {
+    "@types/node": "^10.12.2",
+    "nodemon": "^1.18.5",
+    "nps-utils": "^1.7.0",
     "typescript": "^3.1.5"
+  },
+  "dependencies": {
+    "rxjs": "^6.3.3"
+  },
+  "scripts": {
+    "start": "node dist/index.js",
+    "build": "tsc --project tsconfig.json"
   }
 }
