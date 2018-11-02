@@ -1,6 +1,7 @@
 import { createServer, Socket } from 'net';
 import { fromEvent } from 'rxjs';
 import { takeUntil, map, flatMap } from 'rxjs/operators';
+import { Game } from './game';
 
 // socket events
 // [
@@ -29,21 +30,27 @@ const socks$ = fromEvent<Socket>(server, 'connection').pipe(
   takeUntil(fromEvent(server, 'close')),
 );
 
-const messages$ = socks$.pipe(
-  flatMap(sock => {
-    const close$ = fromEvent<void>(sock, 'close');
-    return fromEvent<Buffer>(sock, 'data').pipe(
-      takeUntil(close$),
-      map(data => ({ data: data.toString(), sock })),
-    );
-  }),
-);
-
 socks$.subscribe(sock => {
   const name = sock.remoteAddress + ':' + sock.remotePort;
   console.log('CONNECTED: ', name);
 });
 
-messages$.subscribe(({ data, sock }) => {
-  console.log(sock.remoteAddress + ':' + sock.remotePort, data);
+const messages$ = socks$.pipe(
+  flatMap(sock => {
+    const close$ = fromEvent<void>(sock, 'close');
+    const game = new Game();
+    return fromEvent<Buffer>(sock, 'data').pipe(
+      takeUntil(close$),
+      map(data => ({ data: data.toString(), sock, game })),
+    );
+  }),
+);
+
+messages$.subscribe(({ data, sock, game }) => {
+  console.log(
+    `${sock.remoteAddress}:${sock.remotePort}`,
+    data,
+    JSON.stringify({ board: game.board }),
+  );
+  // sock.write();
 });

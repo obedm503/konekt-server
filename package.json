@@ -7,12 +7,14 @@
   "license": "MIT",
   "private": true,
   "devDependencies": {
+    "@types/lodash": "^4.14.117",
     "@types/node": "^10.12.2",
     "nodemon": "^1.18.5",
     "nps-utils": "^1.7.0",
     "typescript": "^3.1.5"
   },
   "dependencies": {
+    "lodash": "^4.17.11",
     "rxjs": "^6.3.3"
   },
   "scripts": {
