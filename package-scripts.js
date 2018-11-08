@@ -1,7 +1,9 @@
-const { concurrent } = require('nps-utils');
+const { concurrent, rimraf, series } = require('nps-utils');
 
 module.exports.scripts = {
-  default: concurrent({
+  default: series.nps('clean', 'start'),
+  clean: rimraf('dist'),
+  start: concurrent({
     tsc: [
       'tsc',
       '--project tsconfig.json',
