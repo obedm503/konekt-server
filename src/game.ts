@@ -1,14 +1,10 @@
 import { findLastIndex, range } from 'lodash';
-import { FullColumnError, InvalidColumnError } from './protocol/errors';
+import { FullColumnError, InvalidColumnError, Player } from './types';
 
 // messages SUP, PUT
 // returns ERROR <number>, WAIT, GO AHEAD, WIN, LOSS, CAT
 
-export enum Token {
-  EMPTY = '*',
-  PLAYER_A = 'A',
-  PLAYER_B = 'B',
-}
+const EMPTY = '*';
 
 export class Game {
   /**
@@ -21,16 +17,14 @@ export class Game {
    * // row 0,1,3,4,5,6
    * ]
    */
-  board: Array<Array<Token>> = range(7).map(() =>
-    range(6).map(() => Token.EMPTY),
-  );
+  board: Array<Array<string>> = range(7).map(() => range(6).map(() => EMPTY));
 
-  put(colIndex: number, player: Token) {
+  put(colIndex: number, player: Player) {
     const col = this.board[colIndex];
     if (!col) {
       throw new InvalidColumnError();
     }
-    const cellIndex = findLastIndex(col, token => token === Token.EMPTY);
+    const cellIndex = findLastIndex(col, token => token === EMPTY);
     if (!col[cellIndex]) {
       throw new FullColumnError();
     }
@@ -38,12 +32,12 @@ export class Game {
     this.board[colIndex][cellIndex] = player;
   }
 
-  didWin(player: Token): boolean {
+  didWin(player: Player): boolean {
     return true;
   }
 
   toString() {
-    const invertedBoard: Array<Array<Token>> = [];
+    const invertedBoard: Array<Array<string>> = [];
 
     this.board.forEach((col, colI) => {
       col.forEach((cell, rowI) => {
@@ -57,3 +51,6 @@ export class Game {
     return invertedBoard.map(row => row.join(' ')).join('\n');
   }
 }
+
+export class SystemPlayer {}
+export class UserPlayer {}

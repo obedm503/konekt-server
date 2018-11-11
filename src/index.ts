@@ -1,8 +1,15 @@
 import { createServer, Socket } from 'net';
-import { fromEvent, Observable } from 'rxjs';
-import { filter, flatMap, map, takeUntil } from 'rxjs/operators';
-import { Game } from './game';
-import { commandIsInvalid } from './protocol';
+import { fromEvent } from 'rxjs';
+import { flatMap, map, takeUntil } from 'rxjs/operators';
+import { Cache } from './cache';
+import {
+  Command,
+  GameState,
+  InvalidColumnError,
+  InvalidCommandError,
+  Player,
+  Response,
+} from './types';
 
 // socket events
 // [
@@ -16,16 +23,11 @@ import { commandIsInvalid } from './protocol';
 //   'timeout',
 // ]
 
-// nodemon restart
-process.once('SIGUSR2', () => {
-  server.close();
-  process.kill(process.pid, 'SIGUSR2');
-});
-const HOST = '127.0.0.1';
-const PORT = 4444;
+const gameCache = new Cache();
 
-const server = createServer().listen(PORT, HOST);
-console.info(`listening on ${HOST}:${PORT}`);
+const PORT = process.env.PORT || 4444;
+const server = createServer().listen(PORT);
+console.info(`listening on localhost:${PORT}`);
 
 const sock$ = fromEvent<Socket>(server, 'connection').pipe(
   takeUntil(fromEvent(server, 'close')),
@@ -37,42 +39,104 @@ sock$.subscribe(sock => {
 });
 
 const message$ = sock$.pipe(
-  flatMap(sock => {
+  flatMap<Socket, { msg: string; sock: Socket }>(sock => {
     const closed$ = fromEvent<void>(sock, 'close');
-    const game = new Game();
     return fromEvent<Buffer>(sock, 'data').pipe(
       takeUntil(closed$),
-      map(msg => ({ msg: msg.toString().trim(), sock, game })),
+      map(msg => ({ msg: msg.toString().trim(), sock })),
     );
   }),
 );
 
-const invalid$ = message$.pipe(
-  map(({ msg, sock, game }) => ({
-    sock,
-    game,
-    msg,
-    error: commandIsInvalid(msg, game),
-  })),
-  filter(({ error }) => !!error),
-);
+const won = (state: GameState, player: Player) => {
+  state[player].write(`WIN ${player}\n`);
+  state[player].end();
+};
+const lost = (state: GameState, player: Player) => {
+  state[player].write(`LOSE ${player}\n`);
+  state[player].end();
+};
 
-invalid$.subscribe(({ sock, error }) => {
-  if (!error) {
-    return;
+let playerWaiting: Socket | undefined;
+message$.subscribe(({ msg, sock }) => {
+  try {
+    console.info(`${sock.remoteAddress}:${sock.remotePort}`, msg);
+    const gameState = gameCache.get(sock);
+
+    if (msg.startsWith(Command.SUP) && gameState) {
+      // already in a game
+      throw new InvalidCommandError();
+    }
+
+    if (msg.startsWith(Command.SUP)) {
+      if (msg === Command.SUP_MULTI) {
+        if (playerWaiting) {
+          gameCache.store(playerWaiting, sock);
+          playerWaiting.write(Response.GO);
+          playerWaiting = undefined;
+        } else {
+          playerWaiting = sock;
+          sock.write(Response.WAIT);
+        }
+      } else if (msg === Command.SUP) {
+        // single player
+        throw new InvalidCommandError();
+      } else {
+        throw new InvalidCommandError();
+      }
+
+      return;
+    }
+
+    if (!gameState) {
+      return;
+    }
+
+    const current = gameState[Player.A] === sock ? Player.A : Player.B;
+    const other = gameState[Player.B] === sock ? Player.B : Player.A;
+
+    if (msg === Command.QUIT) {
+      lost(gameState, current);
+      won(gameState, other);
+      return;
+    }
+
+    if (msg.startsWith(Command.PUT)) {
+      const col = Number(msg.slice(4));
+      if (Number.isNaN(col)) {
+        throw new InvalidColumnError();
+      }
+
+      gameState.game.put(col, current);
+      gameState[current].write('OK\n');
+      // pass it along
+      gameState[other].write(msg);
+      console.log(
+        'are the same?',
+        current,
+        other,
+        gameState[current] === gameState[other],
+      );
+    }
+
+    if (gameState.game.didWin(current)) {
+      won(gameState, current);
+      lost(gameState, other);
+      gameCache.remove(gameState);
+    } else if (gameState.game.didWin(other)) {
+      won(gameState, other);
+      lost(gameState, current);
+      gameCache.remove(gameState);
+    }
+
+    console.info('board:\n', gameState.game.toString());
+  } catch (e) {
+    sock.write(e.toString() + '\n');
   }
-  sock.write(error.toString());
-});
+}, console.error);
 
-const valid$ = message$.pipe(
-  filter(({ msg, game }) => !commandIsInvalid(msg, game)),
-);
-
-valid$.subscribe(({ msg, sock, game }) => {
-  console.log(
-    `${sock.remoteAddress}:${sock.remotePort}`,
-    msg,
-    JSON.stringify({ board: game.board }),
-  );
-  // sock.write();
+// nodemon restart
+process.once('SIGUSR2', () => {
+  server.close();
+  process.kill(process.pid, 'SIGUSR2');
 });
