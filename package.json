@@ -19,6 +19,6 @@
   },
   "scripts": {
     "start": "node dist/index.js",
-    "build": "tsc --project tsconfig.json"
+    "build": "nps build"
   }
 }

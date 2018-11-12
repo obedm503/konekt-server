@@ -12,8 +12,6 @@ import {
 } from './types';
 import { getName, lost, send, won } from './util';
 
-const production = process.env.NODE_ENV === 'production';
-
 // socket events
 // [
 //   'close',
@@ -154,6 +152,7 @@ message$.subscribe(({ msg, sock }) => {
 }, console.error);
 
 // nodemon restart
+const production = process.env.NODE_ENV === 'production';
 if (!production) {
   process.once('SIGUSR2', () => {
     server.getConnections((err, connections) => {

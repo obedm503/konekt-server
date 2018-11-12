@@ -1,9 +1,9 @@
 const { concurrent, rimraf, series } = require('nps-utils');
 
 module.exports.scripts = {
-  default: series.nps('clean', 'start'),
+  default: series.nps('clean', 'dev'),
   clean: rimraf('dist'),
-  start: concurrent({
+  dev: concurrent({
     tsc: [
       'tsc',
       '--project tsconfig.json',
@@ -11,7 +11,7 @@ module.exports.scripts = {
       '--preserveWatchOutput',
       '--pretty',
     ].join(' '),
-    start: [
+    serve: [
       'nodemon',
       '--watch "dist/*"',
       '--delay 2000ms',
@@ -19,4 +19,5 @@ module.exports.scripts = {
       '--exec "npm start"',
     ].join(' '),
   }),
+  build: series('nps clean', 'tsc --project tsconfig.json'),
 };
