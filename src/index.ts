@@ -2,7 +2,14 @@ import { createServer, Socket } from 'net';
 import { fromEvent } from 'rxjs';
 import { filter, flatMap, map, takeUntil } from 'rxjs/operators';
 import { Cache } from './cache';
-import { Command, GameError, InvalidColumnError, InvalidCommandError, Player, Response } from './types';
+import {
+  Command,
+  GameError,
+  InvalidColumnError,
+  InvalidCommandError,
+  Player,
+  Response,
+} from './types';
 import { getName, lost, send, won } from './util';
 
 // socket events
@@ -44,8 +51,9 @@ const message$ = sock$.pipe(
 
 let playerWaiting: Socket | undefined;
 message$.subscribe(({ msg, sock }) => {
+  console.debug(`\n${getName(sock)}`, msg);
+
   try {
-    console.info(`${getName(sock)}`, msg);
     const state = gameCache.get(sock);
 
     if (msg.startsWith(Command.SUP) && state) {
@@ -58,6 +66,8 @@ message$.subscribe(({ msg, sock }) => {
         if (playerWaiting) {
           gameCache.store(playerWaiting, sock);
           send(playerWaiting, Response.GO);
+          send(sock, Response.WAIT);
+
           playerWaiting = undefined;
         } else {
           playerWaiting = sock;
@@ -89,6 +99,7 @@ message$.subscribe(({ msg, sock }) => {
     if (msg === Command.QUIT) {
       lost(state, current);
       won(state, other);
+      gameCache.remove(state); // cleanup
       return;
     }
 
@@ -101,13 +112,22 @@ message$.subscribe(({ msg, sock }) => {
       state.game.put(col, current);
       // pass it along
       send(state[other], msg);
+      send(state[other], Response.GO);
     }
 
     const winner = state.game.check();
+    const isFull = state.game.fullBoard();
 
-    if (!winner) {
+    if (!winner && !isFull) {
+      // normal play
       send(sock, Response.OK);
+      console.debug('\n' + state.game.toString());
       return;
+    }
+
+    if (isFull) {
+      // cat game
+      send(sock, Response.CAT);
     }
 
     if (winner === current) {
@@ -118,9 +138,10 @@ message$.subscribe(({ msg, sock }) => {
       lost(state, current);
     }
 
-    console.info(winner, 'won');
-    console.info(state.game.toString());
-    gameCache.remove(state);
+    console.assert(winner, current + ' wins');
+    console.debug(state.game.toString());
+
+    gameCache.remove(state); // cleanup
   } catch (e) {
     if (e instanceof GameError && sock.writable) {
       send(sock, e.toString());
@@ -132,7 +153,7 @@ message$.subscribe(({ msg, sock }) => {
 
 // nodemon restart
 process.once('SIGUSR2', () => {
-  server.getConnections(connections => {
+  server.getConnections((err, connections) => {
     console.info(`Had ${connections} live`);
     server.close();
     process.kill(process.pid, 'SIGUSR2');
