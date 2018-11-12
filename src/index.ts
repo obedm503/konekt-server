@@ -157,7 +157,7 @@ message$.subscribe(({ msg, sock }) => {
 if (!production) {
   process.once('SIGUSR2', () => {
     server.getConnections((err, connections) => {
-      console.info(`Had ${connections} live`);
+      console.info(`Had ${connections} live connections`);
       server.close();
       process.kill(process.pid, 'SIGUSR2');
     });
