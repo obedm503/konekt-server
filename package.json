@@ -19,6 +19,7 @@
   },
   "scripts": {
     "start": "node dist/index.js",
-    "build": "nps build"
+    "build": "nps build",
+    "heroku-postbuild": "npm run build"
   }
 }
