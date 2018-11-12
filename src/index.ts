@@ -1,15 +1,9 @@
 import { createServer, Socket } from 'net';
 import { fromEvent } from 'rxjs';
-import { flatMap, map, takeUntil } from 'rxjs/operators';
+import { filter, flatMap, map, takeUntil } from 'rxjs/operators';
 import { Cache } from './cache';
-import {
-  Command,
-  GameState,
-  InvalidColumnError,
-  InvalidCommandError,
-  Player,
-  Response,
-} from './types';
+import { Command, GameError, InvalidColumnError, InvalidCommandError, Player, Response } from './types';
+import { getName, lost, send, won } from './util';
 
 // socket events
 // [
@@ -34,8 +28,7 @@ const sock$ = fromEvent<Socket>(server, 'connection').pipe(
 );
 
 sock$.subscribe(sock => {
-  const name = sock.remoteAddress + ':' + sock.remotePort;
-  console.log('CONNECTED: ', name);
+  console.log('CONNECTED: ', getName(sock));
 });
 
 const message$ = sock$.pipe(
@@ -44,26 +37,18 @@ const message$ = sock$.pipe(
     return fromEvent<Buffer>(sock, 'data').pipe(
       takeUntil(closed$),
       map(msg => ({ msg: msg.toString().trim(), sock })),
+      filter(({ msg }) => !!msg.length), // ignore empty messages
     );
   }),
 );
 
-const won = (state: GameState, player: Player) => {
-  state[player].write(`WIN ${player}\n`);
-  state[player].end();
-};
-const lost = (state: GameState, player: Player) => {
-  state[player].write(`LOSE ${player}\n`);
-  state[player].end();
-};
-
 let playerWaiting: Socket | undefined;
 message$.subscribe(({ msg, sock }) => {
   try {
-    console.info(`${sock.remoteAddress}:${sock.remotePort}`, msg);
-    const gameState = gameCache.get(sock);
+    console.info(`${getName(sock)}`, msg);
+    const state = gameCache.get(sock);
 
-    if (msg.startsWith(Command.SUP) && gameState) {
+    if (msg.startsWith(Command.SUP) && state) {
       // already in a game
       throw new InvalidCommandError();
     }
@@ -72,32 +57,38 @@ message$.subscribe(({ msg, sock }) => {
       if (msg === Command.SUP_MULTI) {
         if (playerWaiting) {
           gameCache.store(playerWaiting, sock);
-          playerWaiting.write(Response.GO);
+          send(playerWaiting, Response.GO);
           playerWaiting = undefined;
         } else {
           playerWaiting = sock;
-          sock.write(Response.WAIT);
+          send(sock, Response.WAIT);
         }
+        return;
       } else if (msg === Command.SUP) {
         // single player
         throw new InvalidCommandError();
       } else {
         throw new InvalidCommandError();
       }
-
-      return;
     }
 
-    if (!gameState) {
-      return;
+    if (!state) {
+      throw new InvalidCommandError();
     }
 
-    const current = gameState[Player.A] === sock ? Player.A : Player.B;
-    const other = gameState[Player.B] === sock ? Player.B : Player.A;
+    let current;
+    let other;
+    if (state[Player.A] === sock) {
+      current = Player.A;
+      other = Player.B;
+    } else {
+      current = Player.B;
+      other = Player.A;
+    }
 
     if (msg === Command.QUIT) {
-      lost(gameState, current);
-      won(gameState, other);
+      lost(state, current);
+      won(state, other);
       return;
     }
 
@@ -107,36 +98,43 @@ message$.subscribe(({ msg, sock }) => {
         throw new InvalidColumnError();
       }
 
-      gameState.game.put(col, current);
-      gameState[current].write('OK\n');
+      state.game.put(col, current);
       // pass it along
-      gameState[other].write(msg);
-      console.log(
-        'are the same?',
-        current,
-        other,
-        gameState[current] === gameState[other],
-      );
+      send(state[other], msg);
     }
 
-    if (gameState.game.didWin(current)) {
-      won(gameState, current);
-      lost(gameState, other);
-      gameCache.remove(gameState);
-    } else if (gameState.game.didWin(other)) {
-      won(gameState, other);
-      lost(gameState, current);
-      gameCache.remove(gameState);
+    const winner = state.game.check();
+
+    if (!winner) {
+      send(sock, Response.OK);
+      return;
     }
 
-    console.info('board:\n', gameState.game.toString());
+    if (winner === current) {
+      won(state, current);
+      lost(state, other);
+    } else {
+      won(state, other);
+      lost(state, current);
+    }
+
+    console.info(winner, 'won');
+    console.info(state.game.toString());
+    gameCache.remove(state);
   } catch (e) {
-    sock.write(e.toString() + '\n');
+    if (e instanceof GameError && sock.writable) {
+      send(sock, e.toString());
+    } else {
+      sock.end();
+    }
   }
 }, console.error);
 
 // nodemon restart
 process.once('SIGUSR2', () => {
-  server.close();
-  process.kill(process.pid, 'SIGUSR2');
+  server.getConnections(connections => {
+    console.info(`Had ${connections} live`);
+    server.close();
+    process.kill(process.pid, 'SIGUSR2');
+  });
 });

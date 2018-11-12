@@ -25,8 +25,11 @@ export enum Command {
   QUIT = 'QUIT',
 }
 export enum Response {
-  GO = 'GO AHEAD\n',
-  WAIT = 'WAIT\n',
+  GO = 'GO AHEAD',
+  WAIT = 'WAIT',
+  OK = 'OK',
+  WIN = 'WIN',
+  LOSE = 'LOSE',
 }
 
 enum Errors {
@@ -35,9 +38,11 @@ enum Errors {
   invalidCommand = 3,
 }
 
-class GameError {
-  constructor(...msg: any[]) {
-    console.error(...msg);
+export class GameError {
+  constructor(msg?: string) {
+    if (msg) {
+      console.error(msg);
+    }
   }
 }
 

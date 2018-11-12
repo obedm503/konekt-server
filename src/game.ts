@@ -5,6 +5,7 @@ import { FullColumnError, InvalidColumnError, Player } from './types';
 // returns ERROR <number>, WAIT, GO AHEAD, WIN, LOSS, CAT
 
 const EMPTY = '*';
+type Token = Player | '*';
 
 export class Game {
   /**
@@ -17,9 +18,12 @@ export class Game {
    * // row 0,1,3,4,5,6
    * ]
    */
-  board: Array<Array<string>> = range(7).map(() => range(6).map(() => EMPTY));
+  board: Array<Array<Token>> = range(7).map(() =>
+    range(6).map(() => EMPTY as Token),
+  );
 
-  put(colIndex: number, player: Player) {
+  put(colNum: number, player: Player) {
+    const colIndex = colNum - 1; // make 0-indexed
     const col = this.board[colIndex];
     if (!col) {
       throw new InvalidColumnError();
@@ -32,12 +36,21 @@ export class Game {
     this.board[colIndex][cellIndex] = player;
   }
 
-  didWin(player: Player): boolean {
+  private didWin(player: Player): boolean {
     return true;
   }
 
+  check(): Player | undefined {
+    if (this.didWin(Player.A)) {
+      return Player.A;
+    }
+    if (this.didWin(Player.B)) {
+      return Player.B;
+    }
+  }
+
   toString() {
-    const invertedBoard: Array<Array<string>> = [];
+    const invertedBoard: Array<Array<Token>> = [];
 
     this.board.forEach((col, colI) => {
       col.forEach((cell, rowI) => {
