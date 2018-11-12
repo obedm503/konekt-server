@@ -12,6 +12,8 @@ import {
 } from './types';
 import { getName, lost, send, won } from './util';
 
+const production = process.env.NODE_ENV === 'production';
+
 // socket events
 // [
 //   'close',
@@ -28,7 +30,7 @@ const gameCache = new Cache();
 
 const PORT = process.env.PORT || 4444;
 const server = createServer().listen(PORT);
-console.info(`listening on localhost:${PORT}`);
+console.info(`Listening on port ${PORT}`);
 
 const sock$ = fromEvent<Socket>(server, 'connection').pipe(
   takeUntil(fromEvent(server, 'close')),
@@ -152,10 +154,12 @@ message$.subscribe(({ msg, sock }) => {
 }, console.error);
 
 // nodemon restart
-process.once('SIGUSR2', () => {
-  server.getConnections((err, connections) => {
-    console.info(`Had ${connections} live`);
-    server.close();
-    process.kill(process.pid, 'SIGUSR2');
+if (!production) {
+  process.once('SIGUSR2', () => {
+    server.getConnections((err, connections) => {
+      console.info(`Had ${connections} live`);
+      server.close();
+      process.kill(process.pid, 'SIGUSR2');
+    });
   });
-});
+}
