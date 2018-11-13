@@ -30,6 +30,7 @@ export enum Response {
   WIN = 'WIN',
   LOSE = 'LOSS',
   CAT = 'CAT',
+  BYE = 'GOODBYE',
 }
 
 enum Errors {

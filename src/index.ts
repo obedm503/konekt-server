@@ -1,6 +1,6 @@
 import { createServer, Socket } from 'net';
 import { fromEvent } from 'rxjs';
-import { filter, flatMap, map, takeUntil } from 'rxjs/operators';
+import { filter, flatMap, map, takeUntil, tap } from 'rxjs/operators';
 import { Cache } from './cache';
 import {
   Command,
@@ -35,15 +35,52 @@ const sock$ = fromEvent<Socket>(server, 'connection').pipe(
 );
 
 sock$.subscribe(sock => {
-  console.log('CONNECTED: ', getName(sock));
+  console.log('\nCONNECTED: ', getName(sock));
   send(sock, 'HEY');
 });
 
+const onClose = (msg: string, sock: Socket) => () => {
+  console.log('CLOSE: ', msg, getName(sock));
+
+  if (msg === 'close') {
+    return;
+  }
+
+  const state = gameCache.get(sock);
+  if (!state) {
+    return;
+  }
+
+  // close the other connection
+  [Player.A, Player.B].forEach(player => {
+    const s = state[player];
+    if (s === sock) {
+      return;
+    }
+    send(s, Response.BYE);
+
+    if (s.writable) {
+      s.end();
+    }
+  });
+};
+
 const message$ = sock$.pipe(
   flatMap<Socket, { msg: string; sock: Socket }>(sock => {
-    const closed$ = fromEvent<void>(sock, 'close');
+    const closed$ = fromEvent<void>(sock, 'close').pipe(
+      tap(onClose('close', sock)),
+    );
+    const error$ = fromEvent<Error>(sock, 'error').pipe(
+      tap(onClose('error', sock)),
+    );
+    const timeout$ = fromEvent<boolean>(sock, 'timeout').pipe(
+      tap(onClose('timeout', sock)),
+    );
+
     return fromEvent<Buffer>(sock, 'data').pipe(
       takeUntil(closed$),
+      takeUntil(error$),
+      takeUntil(timeout$),
       map(msg => ({ msg: msg.toString().trim(), sock })),
       filter(({ msg }) => !!msg.length), // ignore empty messages
     );
@@ -52,7 +89,7 @@ const message$ = sock$.pipe(
 
 let playerWaiting: Socket | undefined;
 message$.subscribe(({ msg, sock }) => {
-  console.debug(`\n${getName(sock)}`, msg);
+  console.debug(`\ngot ${getName(sock)} "${msg}"`);
 
   try {
     if (!Object.values(Command).some(command => msg.startsWith(command))) {
@@ -114,7 +151,6 @@ message$.subscribe(({ msg, sock }) => {
       state.game.put(col - 1, current);
       // pass it along
       send(state[other], msg);
-      send(state[other], Response.GO);
     }
 
     const winner = state.game.check();
@@ -124,7 +160,8 @@ message$.subscribe(({ msg, sock }) => {
     if (!gameOver) {
       // normal play
       send(sock, Response.OK);
-      console.debug('\n' + state.game.toString());
+      send(state[other], Response.GO);
+      console.debug(state.game.toString());
       return;
     }
 
@@ -151,6 +188,7 @@ message$.subscribe(({ msg, sock }) => {
     } else {
       sock.end();
     }
+    console.error(e.toString());
   }
 }, console.error);
 

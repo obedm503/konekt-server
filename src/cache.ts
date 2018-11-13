@@ -1,6 +1,6 @@
 import { Socket } from 'net';
 import { Game } from './game';
-import { GameState, Player } from './types';
+import { GameState, InvalidCommandError, Player } from './types';
 
 export class Cache {
   private states = new WeakMap<Socket, GameState>();
@@ -14,7 +14,7 @@ export class Cache {
 
   store(sockA: Socket, sockB: Socket): GameState {
     if (sockA === sockB) {
-      throw new Error('Cannot be same instance');
+      throw new InvalidCommandError('Cannot be same instance');
     }
     const state: GameState = {
       [Player.A]: sockA,

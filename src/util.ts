@@ -1,10 +1,13 @@
 import { Socket } from 'net';
-import { EOL } from 'os';
 import { GameState, Player, Response } from './types';
 
 export const getName = (sock: Socket) =>
   sock.remoteAddress + ':' + sock.remotePort;
-export const send = (sock: Socket, msg: string) => sock.write(msg + EOL);
+
+export const send = (sock: Socket, msg: string) => {
+  console.log(`sent ${getName(sock)} "${msg}"`);
+  return sock.write(msg);
+};
 
 export const won = (state: GameState, player: Player) => {
   send(state[player], Response.WIN);
