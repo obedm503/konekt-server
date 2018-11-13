@@ -1,37 +1,22 @@
 import { findLastIndex, range } from 'lodash';
-import { FullColumnError, InvalidColumnError, Player } from './types';
+import {
+  checkCols,
+  checkDiagonal,
+  checkRows,
+  makeSeachString,
+} from './check-win';
+import {
+  Board,
+  FullColumnError,
+  InvalidColumnError,
+  Player,
+  Token,
+} from './types';
 
 // messages SUP, PUT
 // returns ERROR <number>, WAIT, GO AHEAD, WIN, LOSS, CAT
 
 const EMPTY = '*';
-type Token = Player | '*';
-type Board = Array<Array<Token>>;
-
-const makeMatch = (player: Player) =>
-  range(4)
-    .fill(player as any)
-    .join('');
-
-const checkCols = (board: Board, player: Player) => {
-  const match = makeMatch(player);
-
-  return board.some(col => {
-    return col.join('').includes(match);
-  });
-};
-const checkRows = (board: Board, player: Player) => {
-  const match = makeMatch(player);
-
-  const rows = range(6).map(i => {
-    const row = board.map(col => col[i]);
-    return row.join('');
-  });
-  return rows.some(row => {
-    return row.includes(match);
-  });
-};
-const checkDiagonal = (board: Board, player: Player) => false;
 
 export class Game {
   /**
@@ -46,8 +31,7 @@ export class Game {
    */
   board: Board = range(7).map(() => range(6).map(() => EMPTY as Token));
 
-  put(colNum: number, player: Player) {
-    const colIndex = colNum - 1; // make 0-indexed
+  put(colIndex: number, player: Player) {
     const col = this.board[colIndex];
     if (!col) {
       throw new InvalidColumnError();
@@ -61,9 +45,10 @@ export class Game {
   }
 
   private didWin(player: Player): boolean {
-    const row = () => checkRows(this.board, player);
-    const col = () => checkCols(this.board, player);
-    const diagonal = () => checkDiagonal(this.board, player);
+    const search = makeSeachString(player);
+    const col = () => checkCols(this.board, search);
+    const row = () => checkRows(this.board, search);
+    const diagonal = () => checkDiagonal(this.board, search);
 
     return col() || row() || diagonal();
   }
@@ -77,8 +62,8 @@ export class Game {
     }
   }
 
-  fullBoard() {
-    return this.board.every(col => col.every(token => token !== EMPTY));
+  full() {
+    return this.board.every(col => col.every(cell => cell !== EMPTY));
   }
 
   toString() {
@@ -96,6 +81,3 @@ export class Game {
     return invertedBoard.map(row => row.join(' ')).join('\n');
   }
 }
-
-export class SystemPlayer {}
-export class UserPlayer {}

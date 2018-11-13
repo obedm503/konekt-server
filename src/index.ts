@@ -36,6 +36,7 @@ const sock$ = fromEvent<Socket>(server, 'connection').pipe(
 
 sock$.subscribe(sock => {
   console.log('CONNECTED: ', getName(sock));
+  send(sock, 'HEY');
 });
 
 const message$ = sock$.pipe(
@@ -54,6 +55,10 @@ message$.subscribe(({ msg, sock }) => {
   console.debug(`\n${getName(sock)}`, msg);
 
   try {
+    if (!Object.values(Command).some(command => msg.startsWith(command))) {
+      throw new InvalidCommandError();
+    }
+
     const state = gameCache.get(sock);
 
     if (msg.startsWith(Command.SUP) && state) {
@@ -62,7 +67,7 @@ message$.subscribe(({ msg, sock }) => {
     }
 
     if (msg.startsWith(Command.SUP)) {
-      if (msg === Command.SUP_MULTI) {
+      if (msg === Command.SUP) {
         if (playerWaiting) {
           gameCache.store(playerWaiting, sock);
           send(playerWaiting, Response.GO);
@@ -74,9 +79,6 @@ message$.subscribe(({ msg, sock }) => {
           send(sock, Response.WAIT);
         }
         return;
-      } else if (msg === Command.SUP) {
-        // single player
-        throw new InvalidCommandError();
       } else {
         throw new InvalidCommandError();
       }
@@ -109,16 +111,17 @@ message$.subscribe(({ msg, sock }) => {
         throw new InvalidColumnError();
       }
 
-      state.game.put(col, current);
+      state.game.put(col - 1, current);
       // pass it along
       send(state[other], msg);
       send(state[other], Response.GO);
     }
 
     const winner = state.game.check();
-    const isFull = state.game.fullBoard();
+    const isFull = state.game.full();
+    const gameOver = winner || isFull;
 
-    if (!winner && !isFull) {
+    if (!gameOver) {
       // normal play
       send(sock, Response.OK);
       console.debug('\n' + state.game.toString());

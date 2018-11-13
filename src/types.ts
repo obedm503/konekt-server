@@ -20,7 +20,6 @@ export type GameState = {
 
 export enum Command {
   SUP = 'SUP',
-  SUP_MULTI = 'SUP MULTIPLAYER',
   PUT = 'PUT',
   QUIT = 'QUIT',
 }
@@ -29,7 +28,7 @@ export enum Response {
   WAIT = 'WAIT',
   OK = 'OK',
   WIN = 'WIN',
-  LOSE = 'LOSE',
+  LOSE = 'LOSS',
   CAT = 'CAT',
 }
 
@@ -69,3 +68,6 @@ export type CommandError =
   | FullColumnError
   | InvalidColumnError
   | InvalidCommandError;
+
+export type Token = Player | '*';
+export type Board = Array<Array<Token>>;
