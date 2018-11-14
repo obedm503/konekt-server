@@ -19,6 +19,7 @@
     "rxjs": "^6.3.3"
   },
   "scripts": {
+    "dev": "nps",
     "start": "node dist/index.js",
     "build": "nps build"
   }
