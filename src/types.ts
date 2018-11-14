@@ -37,6 +37,7 @@ enum Errors {
   fullCol = 1,
   invalidCol = 2,
   invalidCommand = 3,
+  samePlayer = 4,
 }
 
 export class GameError {
@@ -65,10 +66,17 @@ export class FullColumnError extends GameError {
   }
 }
 
+export class SamePlayerError extends GameError {
+  toString() {
+    return `ERROR ${Errors.samePlayer}`;
+  }
+}
+
 export type CommandError =
   | FullColumnError
   | InvalidColumnError
-  | InvalidCommandError;
+  | InvalidCommandError
+  | SamePlayerError;
 
 export type Token = Player | '*';
 export type Board = Array<Array<Token>>;

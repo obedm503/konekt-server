@@ -10,15 +10,14 @@ import {
   FullColumnError,
   InvalidColumnError,
   Player,
+  SamePlayerError,
   Token,
 } from './types';
-
-// messages SUP, PUT
-// returns ERROR <number>, WAIT, GO AHEAD, WIN, LOSS, CAT
 
 const EMPTY = '*';
 
 export class Game {
+  private lastPlayer: Player | undefined = undefined;
   /**
    * rows and columns that represent the board. eventually, will be filled
    * with A and B tokens
@@ -32,6 +31,10 @@ export class Game {
   board: Board = range(7).map(() => range(6).map(() => EMPTY as Token));
 
   put(colIndex: number, player: Player) {
+    if (player === this.lastPlayer) {
+      throw new SamePlayerError();
+    }
+
     const col = this.board[colIndex];
     if (!col) {
       throw new InvalidColumnError();
@@ -42,6 +45,7 @@ export class Game {
     }
 
     this.board[colIndex][cellIndex] = player;
+    this.lastPlayer = player;
   }
 
   private didWin(player: Player): boolean {
