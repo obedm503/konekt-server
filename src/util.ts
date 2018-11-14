@@ -5,7 +5,7 @@ export const getName = (sock: Socket) =>
   sock.remoteAddress + ':' + sock.remotePort;
 
 export const send = (sock: Socket, msg: string) => {
-  console.log(`sent ${getName(sock)} "${msg}"`);
+  console.debug(`sent ${getName(sock)} "${msg}"`);
   return sock.write(msg);
 };
 

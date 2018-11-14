@@ -1,4 +1,5 @@
 import { createServer, Socket } from 'net';
+import os from 'os';
 import { fromEvent } from 'rxjs';
 import { filter, flatMap, map, takeUntil, tap } from 'rxjs/operators';
 import { Cache } from './cache';
@@ -24,23 +25,36 @@ import { getName, lost, send, won } from './util';
 //   'timeout',
 // ]
 
+const production = process.env.NODE_ENV === 'production';
+if (production) {
+  console.debug = () => {};
+}
+
+const netInterface = os
+  .networkInterfaces()
+  ['wlp1s0'].find(inter => inter.family === 'IPv4');
+
 const gameCache = new Cache();
 
 const PORT = process.env.PORT || 4444;
 const server = createServer().listen(PORT);
-console.info(`Listening on port ${PORT}`);
+console.info(
+  `Listening on ${netInterface ? netInterface.address : 'localhost'}:${PORT}`,
+);
+
+// server.on('listening', )
 
 const sock$ = fromEvent<Socket>(server, 'connection').pipe(
   takeUntil(fromEvent(server, 'close')),
 );
 
 sock$.subscribe(sock => {
-  console.log('\nCONNECTED: ', getName(sock));
+  console.debug('\nCONNECTED: ', getName(sock));
   send(sock, 'HEY');
 });
 
 const onClose = (msg: string, sock: Socket) => () => {
-  console.log('CLOSE: ', msg, getName(sock));
+  console.debug('CLOSE: ', msg, getName(sock));
 
   if (msg === 'close') {
     return;
@@ -193,11 +207,10 @@ message$.subscribe(({ msg, sock }) => {
 }, console.error);
 
 // nodemon restart
-const production = process.env.NODE_ENV === 'production';
 if (!production) {
   process.once('SIGUSR2', () => {
     server.getConnections((err, connections) => {
-      console.info(`Had ${connections} live connections`);
+      console.debug(`Had ${connections} live connections`);
       server.close();
       process.kill(process.pid, 'SIGUSR2');
     });
